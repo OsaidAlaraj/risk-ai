@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.tools/
+.vite/
+*.local
+*.log
+smoke-*.png
+.qa-build/
+qa-results.json

@@ -1,0 +1,62 @@
+import type { ClassificationInput, ClassificationResult } from "../engine/types";
+
+export function buildReportManifest(input: ClassificationInput, result: ClassificationResult) {
+  return {
+    title: "AI Act Risk Classification Report",
+    generatedAt: result.generatedAt,
+    assessmentVersion: result.assessmentVersion,
+    system: {
+      name: input.systemName,
+      provider: input.providerName,
+      purpose: input.purpose,
+      sector: input.sector,
+      aiInputs: input.aiInputs,
+      aiOutputs: input.aiOutputs,
+      outputUsers: input.outputUsers,
+      actorRole: input.actorRole,
+      systemType: input.systemType,
+      scope: input.scope,
+      interactionMode: input.interactionMode,
+      decisionMode: input.decisionMode,
+    },
+    decision: {
+      tier: result.tier,
+      scopeStatus: result.scopeStatus,
+      aiFunctionUnclear: result.aiFunctionUnclear,
+      uncertainty: result.uncertainty,
+      confidence: result.confidence,
+      confidenceLabel: result.confidenceLabel,
+      confidenceExplanation: result.confidenceExplanation,
+      summary: result.summary,
+      mainReason: result.mainReason,
+      recommendation: result.recommendation,
+    },
+    evidence: input.evidenceDocuments.map((doc) => ({
+      name: doc.name,
+      kind: doc.kind,
+      findings: doc.extracted,
+    })),
+    complianceBundle: {
+      checklist: result.checklist,
+      conformityWorkflow: result.conformityWorkflow,
+      citations: result.citations,
+      evidenceWarnings: result.evidenceWarnings,
+      modelTests: result.modelTestResults,
+      requiredControls: result.requiredControls,
+      nextSteps: result.nextSteps,
+      whatCouldChange: result.whatCouldChange,
+      gpaIObligations: result.gpaIObligations,
+    },
+    review: {
+      factsUsed: result.factsUsed,
+      selectedSignals: result.selectedSignals,
+      contradictions: result.contradictions,
+      evidenceStatus: result.evidenceStatus,
+      missingFacts: result.missingFacts,
+      assumptions: result.assumptions,
+      informationGaps: result.informationGaps,
+      nonAIActFlags: result.nonAIActFlags,
+      fieldAudit: result.fieldAudit,
+    },
+  };
+}
