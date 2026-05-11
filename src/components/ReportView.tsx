@@ -1,6 +1,13 @@
-import { Scale, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  FileText,
+  Scale,
+  ShieldCheck,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import type { ClassificationInput, ClassificationResult } from "../engine/types";
+import type { ClassificationInput, ClassificationResult, RiskTier } from "../engine/types";
 import { riskTierLabels } from "../engine/types";
 import { formatDateTime } from "../lib/utils";
 
@@ -21,317 +28,452 @@ export function ReportView({ input, result }: ReportViewProps) {
   if (!result) return null;
 
   return (
-    <section id="report" className="no-print page-grid pb-24">
-      <article className="result-memo">
-        <header className="border-b border-line px-6 py-6 sm:px-8 sm:py-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-3">
-                <span className="brand-mark border border-slate-200 bg-navy-950 text-gold-300">
-                  <Scale className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="brand-title text-slate-500">AI Act Risk Classifier Pro</p>
-                  <h2 className="memo-title">Screening and documentation memo</h2>
-                </div>
-              </div>
-              <p className="memo-copy mt-4">
-                This memo turns the questionnaire answers, evidence state, and rule outcomes into a provisional screening record for educational decision support. It is not legal advice, and it does not claim regulatory approval.
-              </p>
+    <section id="report" className="no-print container pb-16">
+      <article className="memo animate-slide-up">
+        {/* Header */}
+        <header className="memo-header">
+          <div className="memo-meta">
+            <span className="tier-badge" data-tier={result.tier}>
+              {riskTierLabels[result.tier]}
+            </span>
+            <span className="status-badge" data-status="neutral">
+              Version {result.assessmentVersion}
+            </span>
+            <span className="status-badge" data-status="neutral">
+              {result.scopeStatus.replace(/_/g, " ")}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <h2 className="memo-title text-balance">
+                {input.systemName || "AI System"} Classification
+              </h2>
+              <p className="memo-summary">{result.summary}</p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[34rem]">
-              <ReportStat label="Generated" value={formatDateTime(result.generatedAt)} />
-              <ReportStat label="Version" value={String(result.assessmentVersion)} />
-              <ReportStat label="Confidence" value={result.confidenceLabel} />
+            <div className="flex-shrink-0 lg:w-72">
+              <div className="rounded-lg border bg-background p-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Confidence</span>
+                  <span className="font-semibold">{result.confidenceLabel}</span>
+                </div>
+                <div className="confidence-meter mt-3">
+                  <div
+                    className="confidence-meter-fill"
+                    data-tier={result.tier}
+                    style={{ width: `${result.confidence}%` }}
+                  />
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {result.confidenceExplanation}
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground/60">
+                  Generated {formatDateTime(result.generatedAt)}
+                </p>
+              </div>
             </div>
           </div>
         </header>
 
-        <div className="grid gap-4 border-b border-line px-6 py-5 sm:grid-cols-2 xl:grid-cols-4 sm:px-8">
-          <ReportStat label="Final category" value={riskTierLabels[result.tier]} />
-          <ReportStat label="Input quality" value={result.uncertainty.answerCompleteness >= 75 ? "Ready for screening" : result.uncertainty.answerCompleteness >= 50 ? "Needs clarification" : "High uncertainty"} />
-          <ReportStat label="Evidence status" value={result.evidenceStatus} />
-          <ReportStat label="Main uncertainty" value={result.confidenceExplanation} />
+        {/* Stats row */}
+        <div className="memo-stats">
+          <StatCard
+            label="Final category"
+            value={riskTierLabels[result.tier]}
+          />
+          <StatCard
+            label="Input quality"
+            value={
+              result.uncertainty.answerCompleteness >= 75
+                ? "Ready"
+                : result.uncertainty.answerCompleteness >= 50
+                  ? "Needs clarification"
+                  : "High uncertainty"
+            }
+          />
+          <StatCard
+            label="Evidence status"
+            value={result.evidenceStatus}
+          />
+          <StatCard
+            label="Rule group"
+            value={result.ruleGroup}
+          />
         </div>
 
-        <div className="px-6 py-6 sm:px-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_340px]">
-            <div className="space-y-5">
-              <ReportSection title="1. Executive Summary" eyebrow="Overview">
-                <p className="memo-copy">{result.summary}</p>
-                <p className="mt-4 text-sm leading-7 text-slate-700">{result.mainReason}</p>
-                <p className="mt-4 text-sm leading-7 text-slate-700">{result.recommendation}</p>
-              </ReportSection>
+        {/* Main content */}
+        <div className="memo-body">
+          <div className="flex flex-col gap-4">
+            {/* Executive Summary */}
+            <MemoSection eyebrow="Overview" title="Executive Summary">
+              <p className="memo-text">{result.summary}</p>
+              <p className="memo-text mt-3">{result.mainReason}</p>
+              <p className="memo-text mt-3">{result.recommendation}</p>
+            </MemoSection>
 
-              <ReportSection title="2. AI System Description" eyebrow="Facts">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <ReportFact label="System" value={input.systemName || "Not specified"} />
-                  <ReportFact label="Provider" value={input.providerName || "Not specified"} />
-                  <ReportFact label="Actor role" value={result.actorRole.replace(/_/g, " ")} />
-                  <ReportFact label="System type" value={result.systemType.replace(/_/g, " ")} />
-                  <ReportFact label="EU scope" value={scopeLabel(input)} />
-                  <ReportFact label="Interaction mode" value={input.interactionMode.replace(/_/g, " ")} />
-                  <ReportFact label="Decision mode" value={input.decisionMode.replace(/_/g, " ")} />
-                  <ReportFact label="People affected" value={input.affectedPeople.length ? input.affectedPeople.join(", ") : "Not specified"} />
-                  <ReportFact label="Data categories" value={input.dataTypes.length ? input.dataTypes.join(", ") : "Not specified"} />
-                  <ReportFact label="AI function" value={input.purpose || "Not specified"} />
-                </div>
-                <p className="mt-5 memo-copy">{input.systemDescription || "No description provided."}</p>
-              </ReportSection>
+            {/* System Description */}
+            <MemoSection eyebrow="Facts" title="AI System Description">
+              <div className="memo-fact-grid">
+                <MemoFact label="System" value={input.systemName || "Not specified"} />
+                <MemoFact label="Provider" value={input.providerName || "Not specified"} />
+                <MemoFact label="Actor role" value={result.actorRole.replace(/_/g, " ")} />
+                <MemoFact label="System type" value={result.systemType.replace(/_/g, " ")} />
+                <MemoFact label="EU scope" value={scopeLabel(input)} />
+                <MemoFact label="Interaction" value={input.interactionMode.replace(/_/g, " ")} />
+                <MemoFact label="Decision mode" value={input.decisionMode.replace(/_/g, " ")} />
+                <MemoFact
+                  label="People affected"
+                  value={input.affectedPeople.length ? input.affectedPeople.join(", ") : "Not specified"}
+                />
+              </div>
+              <p className="memo-text mt-4">
+                {input.systemDescription || "No description provided."}
+              </p>
+            </MemoSection>
 
-              <ReportSection title="3. Why This Tier Was Selected" eyebrow="Reasoning">
-                <div className="space-y-3">
-                  {result.pipeline.map((step) => (
-                    <div key={step.id} className="rounded-[1.35rem] border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-sm font-semibold tracking-[-0.01em] text-slate-950">{step.title}</h4>
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">{step.status}</span>
+            {/* Reasoning Pipeline */}
+            <MemoSection eyebrow="Reasoning" title="Classification Pipeline">
+              <div className="pipeline">
+                {result.pipeline.map((step, index) => (
+                  <div key={step.id} className="pipeline-step" data-status={step.status}>
+                    <div className="pipeline-track">
+                      <span className="pipeline-node">{index + 1}</span>
+                      {index < result.pipeline.length - 1 && (
+                        <span className="pipeline-line" />
+                      )}
+                    </div>
+                    <div className="pipeline-card">
+                      <div className="pipeline-card-header">
+                        <span className="pipeline-card-title">{step.title}</span>
+                        <span className="pipeline-card-status">{step.status}</span>
                       </div>
-                      <p className="mt-2 text-sm leading-7 text-slate-700">{step.summary}</p>
-                      <ul className="mt-3 space-y-2">
-                        {step.details.map((detail) => (
-                          <li key={detail} className="flex gap-2 text-sm leading-7 text-slate-700">
-                            <ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-[#7a8f7e]" aria-hidden="true" />
-                            {detail}
-                          </li>
-                        ))}
-                      </ul>
-                      <details className="mt-4 rounded-[1rem] border border-slate-200 bg-slate-50 px-4 py-3">
-                        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-950">
+                      <p className="pipeline-card-text">{step.summary}</p>
+                      {step.details.length > 0 && (
+                        <div className="pipeline-card-details">
+                          {step.details.map((detail) => (
+                            <div key={detail} className="pipeline-detail">
+                              <CheckCircle2
+                                className="pipeline-detail-icon h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{detail}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <details className="mt-3 rounded-md border bg-muted/30 p-2.5">
+                        <summary className="flex cursor-pointer items-center justify-between text-sm font-medium">
                           Legal basis
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
                         </summary>
-                        <p className="mt-2 text-sm leading-7 text-slate-700">{step.legalBasis}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {step.legalBasis}
+                        </p>
                       </details>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </MemoSection>
+
+            {/* Key Assumptions */}
+            <MemoSection eyebrow="Assumptions" title="Key Assumptions">
+              {result.assumptions.length === 0 ? (
+                <p className="memo-text">
+                  No explicit assumptions were needed beyond the questionnaire answers.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {result.assumptions.map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-md border px-3 py-2 text-sm text-muted-foreground"
+                    >
+                      {item}
                     </div>
                   ))}
                 </div>
-              </ReportSection>
+              )}
+            </MemoSection>
 
-              <ReportSection title="4. Key Assumptions" eyebrow="Assumptions">
-                {result.assumptions.length === 0 ? (
-                  <p className="memo-copy">No explicit assumptions were needed beyond the questionnaire answers.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {result.assumptions.map((item) => (
-                      <li key={item} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-700">
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </ReportSection>
-
-              <ReportSection title="5. Information Gaps" eyebrow="Missing facts">
-                {result.informationGaps.length === 0 ? (
-                  <p className="memo-copy">No major information gaps were identified.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {result.informationGaps.map((item) => (
-                      <li key={item} className="rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-950">
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </ReportSection>
-
-              <ReportSection title="6. Evidence and Testing" eyebrow="Support material">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <ReportFact label="Evidence files" value={`${input.evidenceDocuments.length}`} />
-                  <ReportFact label="Extracted signals" value={`${result.evidenceFindings.length}`} />
-                  <ReportFact label="Contradictions" value={`${result.contradictions.length}`} />
-                  <ReportFact label="Missing facts" value={`${result.missingFacts.length}`} />
-                </div>
-                <div className="mt-5 space-y-3">
-                  <p className="memo-copy">{result.evidenceStatus}</p>
-                  {result.evidenceWarnings.length > 0 && (
-                    <ul className="space-y-2">
-                      {result.evidenceWarnings.map((warning) => (
-                        <li key={warning} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm leading-7 text-slate-700">
-                          {warning}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {result.contradictions.length > 0 ? (
-                    <ul className="space-y-2">
-                      {result.contradictions.map((item) => (
-                        <li key={item} className="rounded-[1rem] border border-red-200 bg-red-50 px-4 py-3 text-sm leading-7 text-red-800">
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm leading-7 text-slate-700">
-                      No contradictions detected in the answers, but no evidence was available to verify them.
-                    </p>
-                  )}
-                  {result.evidenceFindings.length > 0 && (
-                    <div>
-                      <p className="text-sm font-semibold tracking-[-0.01em] text-slate-950">Evidence citations</p>
-                      <div className="mt-3 space-y-2">
-                        {result.evidenceFindings.map((finding) => (
-                          <div key={finding.id} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-sm font-semibold text-slate-950">{finding.label}</span>
-                              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">{finding.severity}</span>
-                            </div>
-                            <p className="mt-2 text-sm leading-7 text-slate-700">{finding.plainSummary}</p>
-                          </div>
-                        ))}
-                      </div>
+            {/* Information Gaps */}
+            {result.informationGaps.length > 0 && (
+              <MemoSection eyebrow="Gaps" title="Information Gaps">
+                <div className="flex flex-col gap-2">
+                  {result.informationGaps.map((item) => (
+                    <div
+                      key={item}
+                      className="signal-card"
+                      data-tone="warning"
+                    >
+                      <AlertTriangle className="signal-icon h-4 w-4" />
+                      <span className="signal-content">
+                        <span className="signal-description">{item}</span>
+                      </span>
                     </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-semibold tracking-[-0.01em] text-slate-950">Model-test hooks</p>
-                    <div className="mt-3 space-y-2">
-                      {result.modelTestResults.map((test) => (
-                        <div key={test.id} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-sm font-semibold text-slate-950">{test.label}</span>
-                            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">{test.status}</span>
-                          </div>
-                          <p className="mt-2 text-sm leading-7 text-slate-700">{test.plainSummary}</p>
+                  ))}
+                </div>
+              </MemoSection>
+            )}
+
+            {/* Evidence and Testing */}
+            <MemoSection eyebrow="Evidence" title="Evidence and Testing">
+              <div className="memo-fact-grid">
+                <MemoFact
+                  label="Evidence files"
+                  value={`${input.evidenceDocuments.length}`}
+                />
+                <MemoFact
+                  label="Extracted signals"
+                  value={`${result.evidenceFindings.length}`}
+                />
+                <MemoFact
+                  label="Contradictions"
+                  value={`${result.contradictions.length}`}
+                />
+                <MemoFact
+                  label="Missing facts"
+                  value={`${result.missingFacts.length}`}
+                />
+              </div>
+              <p className="memo-text mt-4">{result.evidenceStatus}</p>
+
+              {result.contradictions.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2">
+                  {result.contradictions.map((item) => (
+                    <div key={item} className="signal-card" data-tone="danger">
+                      <span className="signal-content">
+                        <span className="signal-description">{item}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {result.evidenceFindings.length > 0 && (
+                <div className="mt-4">
+                  <p className="mb-2 text-sm font-medium">Evidence citations</p>
+                  <div className="flex flex-col gap-2">
+                    {result.evidenceFindings.map((finding) => (
+                      <div
+                        key={finding.id}
+                        className="rounded-md border bg-card p-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{finding.label}</span>
+                          <span className="text-xs uppercase text-muted-foreground">
+                            {finding.severity}
+                          </span>
                         </div>
-                      ))}
-                    </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {finding.plainSummary}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </ReportSection>
+              )}
+            </MemoSection>
 
-              <ReportSection title="7. Recommended Actions" eyebrow="Next steps">
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <ReportList title="Required controls" items={result.requiredControls} />
-                  <ReportList title="What could change the result" items={result.whatCouldChange} />
-                </div>
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  <ReportList title="Next steps" items={result.nextSteps} />
-                  <ReportList title="Selected signals" items={result.selectedSignals} />
-                </div>
-              </ReportSection>
+            {/* Recommended Actions */}
+            <MemoSection eyebrow="Actions" title="Recommended Actions">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ActionList title="Required controls" items={result.requiredControls} />
+                <ActionList title="What could change" items={result.whatCouldChange} />
+                <ActionList title="Next steps" items={result.nextSteps} />
+                <ActionList title="Selected signals" items={result.selectedSignals} />
+              </div>
+            </MemoSection>
 
-              <ReportSection title="8. Non-AI-Act Compliance Flags" eyebrow="Adjacent review">
-                {Object.values(result.nonAIActFlags).every((flag) => !flag) ? (
-                  <p className="memo-copy">No separate compliance flags were selected.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(result.nonAIActFlags)
-                      .filter(([, value]) => value)
-                      .map(([key]) => (
-                        <span key={key} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700">
-                          {key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase())}
-                        </span>
-                      ))}
-                  </div>
-                )}
-                <p className="mt-4 text-sm leading-7 text-slate-700">
-                  These flags do not automatically make the system high-risk under the AI Act, but they should be reviewed separately.
+            {/* Non-AI-Act Flags */}
+            {Object.values(result.nonAIActFlags).some(Boolean) && (
+              <MemoSection eyebrow="Adjacent" title="Non-AI-Act Compliance Flags">
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(result.nonAIActFlags)
+                    .filter(([, value]) => value)
+                    .map(([key]) => (
+                      <span
+                        key={key}
+                        className="rounded-md border bg-card px-2.5 py-1 text-sm"
+                      >
+                        {key
+                          .replace(/([A-Z])/g, " $1")
+                          .replace(/^./, (c) => c.toUpperCase())}
+                      </span>
+                    ))}
+                </div>
+                <p className="memo-text mt-3">
+                  These flags do not automatically make the system high-risk, but they
+                  should be reviewed separately.
                 </p>
-              </ReportSection>
+              </MemoSection>
+            )}
+          </div>
+
+          {/* Sidebar */}
+          <aside className="flex flex-col gap-4">
+            {/* Confidence Panel */}
+            <div className="rounded-lg border bg-background p-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Confidence
+              </span>
+              <p className="mt-2 text-2xl font-semibold">
+                {result.confidenceLabel}
+              </p>
+              <div className="confidence-meter mt-3">
+                <div
+                  className="confidence-meter-fill"
+                  data-tier={result.tier}
+                  style={{ width: `${result.confidence}%` }}
+                />
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {result.confidenceExplanation}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground/60">
+                Heuristic quality score, not legal probability.
+              </p>
             </div>
 
-            <aside className="space-y-5">
-              <div className="memo-panel p-5">
-                <p className="section-eyebrow">Confidence</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950">{result.confidenceLabel}</p>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-[#7a8f7e]" style={{ width: `${result.confidence}%` }} />
+            {/* Legal References */}
+            {input.showLegalBasis && result.citations.length > 0 && (
+              <div className="rounded-lg border bg-background p-4">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Legal References
+                </span>
+                <div className="mt-3 flex flex-col gap-2">
+                  {result.citations.map((citation) => (
+                    <details
+                      key={citation.id}
+                      className="rounded-md border bg-card p-3"
+                    >
+                      <summary className="cursor-pointer text-sm font-medium">
+                        {citation.legalBasis}
+                      </summary>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {citation.plainExplanation}
+                      </p>
+                    </details>
+                  ))}
                 </div>
-                <p className="mt-3 text-sm leading-7 text-slate-700">{result.confidenceExplanation}</p>
-                <p className="mt-2 text-xs leading-6 text-slate-500">Heuristic quality score, not a legal probability.</p>
               </div>
+            )}
 
-              <div className="memo-panel p-5">
-                <p className="section-eyebrow">Legal references considered</p>
-                {input.showLegalBasis ? (
-                  <div className="mt-3 space-y-3">
-                    {result.citations.length === 0 ? (
-                      <p className="memo-copy">No article or annex citation was generated for this screening.</p>
-                    ) : (
-                      result.citations.map((citation) => (
-                        <details key={citation.id} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
-                          <summary className="cursor-pointer list-none text-sm font-semibold text-slate-950">{citation.legalBasis}</summary>
-                          <p className="mt-2 text-sm leading-7 text-slate-700">{citation.plainExplanation}</p>
-                          <p className="mt-2 text-xs leading-6 text-slate-500">{citation.expertSummary}</p>
-                        </details>
-                      ))
-                    )}
-                  </div>
-                ) : (
-                  <p className="memo-copy mt-3">Legal references are hidden in the interactive view unless the user expands them.</p>
-                )}
+            {/* Compliance Checklist */}
+            {result.checklist.length > 0 && (
+              <div className="rounded-lg border bg-background p-4">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Compliance Checklist
+                </span>
+                <div className="mt-3 flex flex-col gap-2">
+                  {result.checklist.slice(0, 5).map((item) => (
+                    <div
+                      key={`${item.legalBasis}-${item.title}`}
+                      className="rounded-md border bg-card p-3"
+                    >
+                      <p className="text-sm font-medium">{item.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {item.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
 
-              <div className="memo-panel p-5">
-                <p className="section-eyebrow">Local audit trail</p>
-                {result.assessmentVersion ? (
-                  <div className="mt-3 rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
-                    <p className="text-sm font-semibold text-slate-950">Version {result.assessmentVersion}</p>
-                    <p className="mt-1 text-xs leading-6 text-slate-500">{formatDateTime(result.generatedAt)}</p>
-                  </div>
-                ) : (
-                  <p className="memo-copy mt-3">This run has not been saved to local audit history yet.</p>
-                )}
-              </div>
+            {/* Audit Trail */}
+            <div className="rounded-lg border bg-background p-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Audit Trail
+              </span>
+              {result.assessmentVersion ? (
+                <div className="mt-3 rounded-md border bg-card p-3">
+                  <p className="text-sm font-medium">
+                    Version {result.assessmentVersion}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatDateTime(result.generatedAt)}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Not saved to audit history yet.
+                </p>
+              )}
+            </div>
 
-              <div className="memo-panel p-5">
-                <p className="section-eyebrow">Educational disclaimer</p>
-                <p className="memo-copy mt-3">{result.disclaimer}</p>
-              </div>
-            </aside>
-          </div>
+            {/* Disclaimer */}
+            <div className="rounded-lg border bg-background p-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Disclaimer
+              </span>
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                {result.disclaimer}
+              </p>
+            </div>
+          </aside>
         </div>
       </article>
     </section>
   );
 }
 
-function ReportSection({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
+// ==================== SUB-COMPONENTS ====================
+
+function MemoSection({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  children: ReactNode;
+}) {
   return (
     <section className="memo-section">
-      <div className="section-head">
-        <p className="section-eyebrow">{eyebrow}</p>
-        <h3 className="section-title">{title}</h3>
+      <div className="memo-section-header">
+        <span className="memo-section-eyebrow">{eyebrow}</span>
+        <h3 className="memo-section-title">{title}</h3>
       </div>
-      <div className="mt-4">{children}</div>
+      {children}
     </section>
   );
 }
 
-function ReportFact({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+function MemoFact({ label, value }: { label: string; value: string }) {
   return (
     <div className="memo-fact">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className={strong ? "mt-2 text-sm font-semibold text-ink" : "mt-2 text-sm leading-6 text-slate-700"}>{value}</p>
+      <span className="memo-fact-label">{label}</span>
+      <span className="memo-fact-value">{value}</span>
     </div>
   );
 }
 
-function ReportStat({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="memo-stat">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-2 text-sm font-semibold text-ink">{value}</p>
+    <div className="metric-card">
+      <span className="metric-label">{label}</span>
+      <span className="metric-value">{value}</span>
     </div>
   );
 }
 
-function ReportList({ title, items }: { title: string; items: string[] }) {
+function ActionList({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="subpanel">
-      <p className="text-sm font-semibold text-ink">{title}</p>
+    <div className="rounded-md border bg-card p-3">
+      <p className="text-sm font-medium">{title}</p>
       {items.length === 0 ? (
-        <p className="memo-copy mt-2">None listed.</p>
+        <p className="mt-2 text-sm text-muted-foreground">None listed.</p>
       ) : (
-        <ul className="mt-3 space-y-2">
+        <div className="mt-2 flex flex-col gap-1">
           {items.map((item) => (
-            <li key={item} className="flex gap-2 text-sm leading-7 text-slate-700">
-              <ShieldCheck className="mt-1 h-4 w-4 shrink-0 text-[#7a8f7e]" aria-hidden="true" />
-              {item}
-            </li>
+            <div key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+              <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
+              <span>{item}</span>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
