@@ -15,6 +15,7 @@ import { getAdaptiveGroups, getAdjacentIssues, getReviewHints } from "../lib/que
 import { getIntakeState } from "../lib/assessmentSignals";
 import { cx, formatDateTime } from "../lib/utils";
 import { IntelligenceRail } from "./IntelligenceRail";
+import { MobileCompanion } from "./MobileCompanion";
 import { ProgressNavigation } from "./ProgressNavigation";
 import {
   Card,
@@ -831,6 +832,14 @@ export function Wizard({
             evidenceFindingCount={evidenceFindingCount}
           />
         </div>
+
+        <MobileCompanion
+          input={input}
+          currentStep={currentStep}
+          selectedFactCount={selectedFactCount}
+          selectedTestCount={selectedTestCount}
+          evidenceFindingCount={evidenceFindingCount}
+        />
       </div>
     </section>
   );

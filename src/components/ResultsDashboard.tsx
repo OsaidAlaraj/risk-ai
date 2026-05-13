@@ -7,6 +7,7 @@ import {
   FileText,
   History,
   Lightbulb,
+  Loader2,
   RefreshCw,
   Scale,
   ShieldCheck,
@@ -24,6 +25,8 @@ type ResultsDashboardProps = {
   auditRecords: AuditRecord[];
   onReset: () => void;
   onPrint: () => void;
+  exportingReport: boolean;
+  exportError: string;
 };
 
 export function ResultsDashboard({
@@ -32,19 +35,25 @@ export function ResultsDashboard({
   auditRecords,
   onReset,
   onPrint,
+  exportingReport,
+  exportError,
 }: ResultsDashboardProps) {
   if (!result) {
     return (
       <section className="no-print container pb-16">
-        <div className="flex flex-col items-center justify-center rounded-xl border bg-card py-16 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted">
+        <div className="empty-memo">
+          <span className="empty-memo-icon">
             <Scale className="h-7 w-7 text-muted-foreground" aria-hidden="true" />
           </span>
-          <h2 className="mt-6 text-xl font-semibold">Memo not generated yet</h2>
-          <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+          <h2 className="empty-memo-title">Memo not generated yet</h2>
+          <p className="empty-memo-copy">
             Complete the guided assessment to produce a provisional tier, reasoning
             pipeline, evidence summary, and exportable screening memo.
           </p>
+          <button type="button" disabled className="btn btn-secondary mt-6">
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Export report
+          </button>
         </div>
       </section>
     );
@@ -361,11 +370,29 @@ export function ResultsDashboard({
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 New run
               </button>
-              <button type="button" onClick={onPrint} className="btn btn-primary">
-                <Download className="h-4 w-4" aria-hidden="true" />
-                Export
+              <button
+                type="button"
+                onClick={onPrint}
+                disabled={exportingReport}
+                className="btn btn-primary"
+              >
+                {exportingReport ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                )}
+                {exportingReport ? "Preparing..." : "Export report"}
               </button>
             </div>
+            {exportError && (
+              <div className="signal-card" data-tone="danger" role="alert" aria-live="polite">
+                <AlertTriangle className="signal-icon h-4 w-4" aria-hidden="true" />
+                <span className="signal-content">
+                  <span className="signal-title">Export failed</span>
+                  <span className="signal-description">{exportError}</span>
+                </span>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => exportEvidenceBundle(input, result)}
@@ -405,8 +432,8 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border bg-background p-4">
-      <div className="mb-4 flex items-center gap-2 text-base font-semibold">
+    <div className="memo-panel">
+      <div className="memo-panel-heading">
         <span className="text-accent">{icon}</span>
         {title}
       </div>
@@ -425,8 +452,8 @@ function SidePanel({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border bg-background p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+    <div className="memo-side-panel">
+      <div className="memo-side-heading">
         <span className="text-accent">{icon}</span>
         {title}
       </div>
@@ -437,8 +464,8 @@ function SidePanel({
 
 function Subpanel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-md border bg-card p-3">
-      <p className="mb-2 text-sm font-medium">{title}</p>
+    <div className="memo-subpanel">
+      <p className="memo-subpanel-title">{title}</p>
       {children}
     </div>
   );

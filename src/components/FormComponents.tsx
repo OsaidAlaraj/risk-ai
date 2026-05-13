@@ -171,7 +171,7 @@ export function SectionBlock({ eyebrow, title, children }: SectionBlockProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-accent">
+        <span className="text-xs font-semibold uppercase text-accent">
           {eyebrow}
         </span>
         <h2 className="text-xl font-semibold text-foreground">{title}</h2>

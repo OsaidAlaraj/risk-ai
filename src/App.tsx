@@ -15,9 +15,17 @@ function App() {
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>(() => getAuditRecords());
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
+  const [exportingReport, setExportingReport] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     document.title = "AI Act Risk Classifier Pro";
+  }, []);
+
+  useEffect(() => {
+    const stopExporting = () => setExportingReport(false);
+    window.addEventListener("afterprint", stopExporting);
+    return () => window.removeEventListener("afterprint", stopExporting);
   }, []);
 
   const runAnalysis = () => {
@@ -51,6 +59,7 @@ function App() {
     setCurrentStep(0);
     setResult(null);
     setError("");
+    setExportError("");
   };
 
   const loadExample = (example: ClassificationInput) => {
@@ -58,6 +67,7 @@ function App() {
     setCurrentStep(0);
     setResult(null);
     setError("");
+    setExportError("");
     window.setTimeout(
       () =>
         document.getElementById("classifier")?.scrollIntoView({
@@ -66,6 +76,35 @@ function App() {
         }),
       40
     );
+  };
+
+  const exportReport = () => {
+    if (!result) {
+      setExportError("Generate a screening memo before exporting.");
+      return;
+    }
+
+    if (!document.getElementById("report")) {
+      setExportError("The printable report is not available yet.");
+      return;
+    }
+
+    setExportingReport(true);
+    setExportError("");
+
+    window.setTimeout(() => {
+      try {
+        window.print();
+        window.setTimeout(() => setExportingReport(false), 600);
+      } catch (cause) {
+        setExportingReport(false);
+        setExportError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to open the print dialog for this report."
+        );
+      }
+    }, 0);
   };
 
   const demoButtons = [
@@ -111,7 +150,9 @@ function App() {
             result={result}
             auditRecords={auditRecords}
             onReset={reset}
-            onPrint={() => window.print()}
+            onPrint={exportReport}
+            exportingReport={exportingReport}
+            exportError={exportError}
           />
         </div>
 

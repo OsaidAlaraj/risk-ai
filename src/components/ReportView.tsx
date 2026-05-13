@@ -28,7 +28,7 @@ export function ReportView({ input, result }: ReportViewProps) {
   if (!result) return null;
 
   return (
-    <section id="report" className="no-print container pb-16">
+    <section id="report" className="print-report container pb-16">
       <article className="memo animate-slide-up">
         {/* Header */}
         <header className="memo-header">
@@ -315,7 +315,7 @@ export function ReportView({ input, result }: ReportViewProps) {
           <aside className="flex flex-col gap-4">
             {/* Confidence Panel */}
             <div className="rounded-lg border bg-background p-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">
                 Confidence
               </span>
               <p className="mt-2 text-2xl font-semibold">
@@ -339,7 +339,7 @@ export function ReportView({ input, result }: ReportViewProps) {
             {/* Legal References */}
             {input.showLegalBasis && result.citations.length > 0 && (
               <div className="rounded-lg border bg-background p-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">
                   Legal References
                 </span>
                 <div className="mt-3 flex flex-col gap-2">
@@ -363,7 +363,7 @@ export function ReportView({ input, result }: ReportViewProps) {
             {/* Compliance Checklist */}
             {result.checklist.length > 0 && (
               <div className="rounded-lg border bg-background p-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">
                   Compliance Checklist
                 </span>
                 <div className="mt-3 flex flex-col gap-2">
@@ -384,7 +384,7 @@ export function ReportView({ input, result }: ReportViewProps) {
 
             {/* Audit Trail */}
             <div className="rounded-lg border bg-background p-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">
                 Audit Trail
               </span>
               {result.assessmentVersion ? (
@@ -405,7 +405,7 @@ export function ReportView({ input, result }: ReportViewProps) {
 
             {/* Disclaimer */}
             <div className="rounded-lg border bg-background p-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">
                 Disclaimer
               </span>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
