@@ -505,7 +505,7 @@ function seedCore(input: ClassificationInput, overrides: Partial<Pick<Classifica
   input.scope.affectsEUUsers = false;
   input.interactionMode = "unclear";
   input.decisionMode = "unclear";
-  add("Vague system with no evidence", input, "needs_review", "scope is not established", ["Insufficient information", "Low"], undefined, 14, 55);
+  add("Vague system with no evidence", input, "out_of_scope", "scope is not established", ["Insufficient information", "Low"], undefined, 14, 55);
 }
 
 // 18. Conflicting answers
@@ -529,7 +529,19 @@ function seedCore(input: ClassificationInput, overrides: Partial<Pick<Classifica
   input.contentFacts.directlyInteractsWithUsers = true;
   input.contentFacts.generatesPublicFacingContent = true;
   input.controls.disclosure = false;
-  add("Conflicting answers", input, "needs_review", "contradiction", ["Insufficient information", "Low"], undefined, 14, 55);
+  add(
+    "Conflicting answers",
+    input,
+    "limited",
+    "transparency",
+    ["Insufficient information", "Low"],
+    (result) => {
+      assert(result.reviewStatus.includes("Contradictions detected"), "Contradictions should move to review status");
+      assert(result.riskTier === "Limited risk / Transparency obligation", "Review status should not erase the legal tier");
+    },
+    14,
+    55,
+  );
 }
 
 // 19. Sensitive data selected without explanation
@@ -552,7 +564,19 @@ function seedCore(input: ClassificationInput, overrides: Partial<Pick<Classifica
   input.dataFacts.healthData = true;
   input.dataFacts.biometricData = true;
   input.decisionMode = "prepares_information";
-  add("Sensitive data without explanation", input, "needs_review", "missing", ["Insufficient information", "Low"], undefined, 14, 55);
+  add(
+    "Sensitive data without explanation",
+    input,
+    "minimal",
+    "minimal-risk",
+    ["Insufficient information", "Low"],
+    (result) => {
+      assert(result.reviewStatus.includes("Needs evidence"), "Sensitive-data-only case should need evidence without changing the tier");
+      assert(result.informationGaps.some((item) => item.toLowerCase().includes("sensitive")), "Sensitive-data-only case should still ask why the data is needed");
+    },
+    14,
+    55,
+  );
 }
 
 // 20. High-risk text in description but matching fields not selected
@@ -575,7 +599,20 @@ function seedCore(input: ClassificationInput, overrides: Partial<Pick<Classifica
   input.decisionFacts.ranksPeople = true;
   input.decisionFacts.filtersPeople = true;
   input.controls.humanOversight = true;
-  add("High-risk text with unchecked fields", input, "needs_review", "contradiction", ["Insufficient information", "Low"], undefined, 14, 55);
+  add(
+    "High-risk text with unchecked fields",
+    input,
+    "high",
+    "high-risk",
+    ["Low"],
+    (result) => {
+      assert(result.riskTier === "Likely High-risk", "High-risk facts inferred from text should preserve the legal tier");
+      assert(result.reviewStatus.includes("Needs evidence"), "No evidence should become a review status");
+      assert(result.reviewStatus.includes("Contradictions detected"), "Unchecked domain should remain visible as a contradiction");
+    },
+    14,
+    55,
+  );
 }
 
 // 21. Cosmetics / sunscreen regression case
@@ -606,11 +643,12 @@ function seedCore(input: ClassificationInput, overrides: Partial<Pick<Classifica
     "Cosmetics / sunscreen regression",
     input,
     "minimal",
-    "low-risk",
-    ["Medium", "Low"],
+    "minimal-risk",
+    ["Insufficient information", "Low"],
     (result) => {
       assert(result.aiFunctionUnclear, "Sunscreen case should be treated as aiFunctionUnclear");
       assert(result.nonAIActFlags.cosmeticsOrSkincare, "Cosmetics flag should be set");
+      assert(result.reviewStatus.includes("Needs clarification"), "Unclear AI function should be a review status rather than a high-risk route");
       assert(result.informationGaps.some((item) => item.toLowerCase().includes("no evidence files")), "Sunscreen case should mention missing evidence");
     },
     18,
@@ -646,8 +684,8 @@ function seedCore(input: ClassificationInput, overrides: Partial<Pick<Classifica
   add(
     "GPAI model provider",
     input,
-    "minimal",
-    "GPAI obligations",
+    "limited",
+    "transparency",
     ["Medium", "Low"],
     (result) => {
       assert(result.gpaIObligations.length > 0, "GPAI provider should surface GPAI obligations");
@@ -861,6 +899,413 @@ for (const testCase of scenarioTests) {
   } catch (error) {
     results.push({
       name: testCase.name,
+      status: "fail",
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+const hasLegalBasisPoint = (result: ReturnType<typeof classifySystem>, point: string) =>
+  result.legalBasis.some((basis) => basis.annex === "Annex III" && basis.point === point);
+
+const hasLegalArticle = (result: ReturnType<typeof classifySystem>, article: string) =>
+  result.legalBasis.some((basis) => basis.article === article);
+
+const hasMatchedRule = (result: ReturnType<typeof classifySystem>, ruleId: string) =>
+  result.ruleResults.some((rule) => rule.ruleId === ruleId && rule.matched);
+
+for (const regression of [
+  {
+    name: "Legal reasoning: employment screening with education history",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "TalentRank AI";
+      input.providerName = "TalentRank";
+      input.systemDescription = "Screens job applicants for hiring, reads CV education history and employment history, ranks candidates, scores applicants, filters applications, and recommends interviews.";
+      input.purpose = "Recruitment screening";
+      input.sector = "Employment";
+      seedCore(input, {
+        aiInputs: "CVs, education history, employment history, skills, recruiter notes",
+        aiOutputs: "Candidate scores, rankings, filters, and interview recommendations",
+        outputUsers: "Recruiters and hiring managers",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.domains.employment = true;
+      input.decisionMode = "materially_influences_decision";
+      input.decisionFacts.ranksPeople = true;
+      input.decisionFacts.scoresPeople = true;
+      input.decisionFacts.filtersPeople = true;
+      input.decisionFacts.recommendsPeople = true;
+      input.decisionFacts.assessesPeople = true;
+      input.affectedPeople = ["Job applicants"];
+      input.dataTypes = ["CV data", "education history", "employment history"];
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Likely High-risk", "Employment screening should preserve likely high-risk tier");
+      assert(hasLegalBasisPoint(result, "4"), "Employment screening should cite Annex III point 4");
+      assert(result.reviewStatus.includes("Needs evidence"), "Employment screening without files should need evidence");
+      assert(result.confidenceLabel === "Low", "No evidence should lower confidence to Low");
+      assert(!result.contradictions.some((item) => item.toLowerCase().includes("education domain")), "Education history must not create an education-domain contradiction");
+    },
+  },
+  {
+    name: "Legal reasoning: student essay grading",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "EssayGrade AI";
+      input.providerName = "EduSense";
+      input.systemDescription = "Scores and grades student essays, supports pass/fail assessment, and recommends academic progression.";
+      input.purpose = "Student essay grading";
+      input.sector = "Education";
+      seedCore(input, {
+        aiInputs: "Student essays, rubrics, grading criteria",
+        aiOutputs: "Essay scores, grade recommendations, pass/fail flags",
+        outputUsers: "Teachers and exam boards",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.domains.education = true;
+      input.decisionMode = "materially_influences_decision";
+      input.decisionFacts.scoresPeople = true;
+      input.affectedPeople = ["Students"];
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Likely High-risk", "Student grading should be likely high-risk");
+      assert(hasLegalBasisPoint(result, "3"), "Student grading should cite Annex III point 3");
+      assert(result.explanation.toLowerCase().includes("grading") && result.explanation.toLowerCase().includes("student"), "Reason should mention education grading and students");
+    },
+  },
+  {
+    name: "Legal reasoning: credit scoring",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "CreditGate";
+      input.providerName = "FinAI";
+      input.systemDescription = "Produces credit scores, assesses creditworthiness, and recommends loan approval or rejection.";
+      input.purpose = "Loan approval";
+      input.sector = "Finance";
+      seedCore(input, {
+        aiInputs: "Income, repayment history, application data",
+        aiOutputs: "Credit score and loan approval recommendation",
+        outputUsers: "Loan officers",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.domains.finance = true;
+      input.decisionMode = "materially_influences_decision";
+      input.decisionFacts.scoresPeople = true;
+      input.decisionFacts.approvesRejectsPeople = true;
+      input.affectedPeople = ["Loan applicants"];
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Likely High-risk", "Credit scoring should be likely high-risk");
+      assert(hasLegalBasisPoint(result, "5"), "Credit scoring should cite Annex III point 5");
+      assert(result.explanation.toLowerCase().includes("creditworthiness") || result.explanation.toLowerCase().includes("loan"), "Reason should mention credit or loan approval");
+    },
+  },
+  {
+    name: "Legal reasoning: healthcare triage",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "CareTriage";
+      input.providerName = "Clinic AI";
+      input.systemDescription = "Supports clinicians with patient triage urgency, possible diagnosis, and treatment priority.";
+      input.purpose = "Healthcare triage";
+      input.sector = "Healthcare";
+      seedCore(input, {
+        aiInputs: "Symptoms, notes, lab values",
+        aiOutputs: "Triage urgency, diagnosis suggestions, treatment priority",
+        outputUsers: "Clinicians",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.domains.healthcare = true;
+      input.dataFacts.healthData = true;
+      input.decisionMode = "materially_influences_decision";
+      input.affectedPeople = ["Patients"];
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Likely High-risk", "Healthcare triage should not be minimal");
+      assert(result.explanation.toLowerCase().includes("triage") && result.explanation.toLowerCase().includes("patient"), "Reason should explain healthcare/patient-care impact");
+      assert(result.explanation.toLowerCase().includes("medical-device") || result.explanation.toLowerCase().includes("annex i"), "Reason should ask for product or medical-device clarification");
+    },
+  },
+  {
+    name: "Legal reasoning: customer chatbot",
+    input: scenarioTests.find((test) => test.name === "Customer chatbot")!.input,
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Limited risk / Transparency obligation", "Customer chatbot should trigger limited risk / transparency");
+      assert(hasLegalArticle(result, "Article 50"), "Customer chatbot should cite Article 50");
+      assert(!result.legalBasis.some((basis) => basis.annex === "Annex III"), "Customer chatbot should not be high-risk without consequential domain facts");
+    },
+  },
+  {
+    name: "Legal reasoning: internal meeting summarizer",
+    input: scenarioTests.find((test) => test.name === "Internal summarization tool")!.input,
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Minimal risk", "Internal meeting summarizer should be minimal risk");
+      assert(!result.legalBasis.some((basis) => basis.annex === "Annex III"), "Internal summarizer should not trigger Annex III");
+    },
+  },
+  {
+    name: "Legal reasoning: out-of-scope personal tool",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "Personal Trip Sorter";
+      input.providerName = "Personal";
+      input.systemDescription = "Personal tool used only outside the EU with no EU users and no EU market placement.";
+      input.purpose = "Personal organization";
+      input.sector = "Personal";
+      seedCore(input, {
+        aiInputs: "Personal notes",
+        aiOutputs: "Sorted notes",
+        outputUsers: "One individual",
+        actorRole: "affected_person",
+        systemType: "ai_system",
+      });
+      input.interactionMode = "internal_only";
+      input.decisionMode = "prepares_information";
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Out of scope / EU scope not established", "Personal tool should be out of scope");
+      assert(!result.legalBasis.some((basis) => basis.annex === "Annex III"), "Out-of-scope tool should not get a final high-risk basis");
+    },
+  },
+  {
+    name: "Legal reasoning: not-AI spreadsheet",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "Budget Spreadsheet";
+      input.providerName = "Finance Team";
+      input.systemDescription = "Spreadsheet with fixed formulas and no machine-learning, model, inference, or adaptive AI function.";
+      input.purpose = "Budget calculation";
+      input.sector = "Finance";
+      seedCore(input, {
+        aiInputs: "",
+        aiOutputs: "",
+        outputUsers: "Finance analysts",
+        actorRole: "deployer",
+        systemType: "non_ai_or_unclear",
+      });
+      input.scope.usedInEU = true;
+      input.decisionMode = "prepares_information";
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Not an AI system / AI status unclear", "Spreadsheet should stop at the AI-system gate");
+      assert(result.reviewStatus.includes("Needs clarification"), "Not-AI spreadsheet should need clarification");
+    },
+  },
+  {
+    name: "Legal reasoning: public-space biometric watchlist",
+    input: scenarioTests.find((test) => test.name === "Real-time biometric identification")!.input,
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Potentially prohibited", "Public-space biometric watchlist should be potentially prohibited");
+      assert(hasLegalArticle(result, "Article 5"), "Public-space biometric watchlist should cite Article 5");
+      assert(result.reviewStatus.includes("Needs legal review"), "Potentially prohibited use should require legal review");
+    },
+  },
+  {
+    name: "Legal reasoning: AI Act Guard itself",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "AI Act Guard";
+      input.providerName = "Compliance Team";
+      input.systemDescription = "Internal compliance screening assistant that helps reviewers classify AI Act risk and draft provisional memos. It does not make legally binding decisions or decide access to rights, services, jobs, credit, healthcare, education, or benefits.";
+      input.purpose = "Compliance screening support";
+      input.sector = "Compliance";
+      seedCore(input, {
+        aiInputs: "Questionnaire answers and evidence notes",
+        aiOutputs: "Screening memo and suggested legal basis",
+        outputUsers: "Compliance reviewers",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.interactionMode = "internal_only";
+      input.decisionMode = "prepares_information";
+      input.controls.humanOversight = true;
+      input.controls.dataGovernance = true;
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Minimal risk" || result.riskTier === "Limited risk / Transparency obligation", "AI Act Guard should be minimal or limited");
+    },
+  },
+  {
+    name: "Legal reasoning: HireSense Article 5 keeps secondary routes",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "HireSense Video AI";
+      input.providerName = "HireSense";
+      input.systemDescription = "AI video interview system for recruitment. Job applicants interact with the AI interview system. It analyzes facial expressions and voice tone for emotion recognition, scores candidates, ranks candidates, filters applicants, assesses people, recommends interview shortlists, and recommends automatic rejection for low-scoring candidates.";
+      input.purpose = "Recruitment video interview scoring";
+      input.sector = "Employment";
+      seedCore(input, {
+        aiInputs: "Video interviews, facial expressions, voice tone, applicant answers, CV data",
+        aiOutputs: "Emotion indicators, candidate scores, rankings, filters, assessments, interview recommendations, rejection recommendations",
+        outputUsers: "Recruiters, hiring managers, and job applicants",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.scope.affectsEUUsers = true;
+      input.interactionMode = "both";
+      input.decisionMode = "automatically_decides";
+      input.domains.employment = true;
+      input.dataFacts.personalData = true;
+      input.dataFacts.sensitiveData = true;
+      input.dataFacts.biometricData = true;
+      input.contentFacts.directlyInteractsWithUsers = true;
+      input.prohibitedFacts.workplaceOrEducationEmotionRecognition = true;
+      input.prohibitedFacts.sensitiveBiometricCategorization = true;
+      input.decisionFacts.ranksPeople = true;
+      input.decisionFacts.scoresPeople = true;
+      input.decisionFacts.filtersPeople = true;
+      input.decisionFacts.approvesRejectsPeople = true;
+      input.decisionFacts.recommendsPeople = true;
+      input.decisionFacts.assessesPeople = true;
+      input.affectedPeople = ["Job applicants"];
+      input.dataTypes = ["video interview", "voice tone", "facial expressions", "CV data"];
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(result.riskTier === "Potentially prohibited", "HireSense should have Article 5 as the final priority tier");
+      assert(result.reviewStatus.includes("Needs legal review"), "HireSense should require legal review");
+      assert(result.reviewStatus.includes("Needs evidence"), "HireSense should need evidence when no files are uploaded");
+      assert(result.reviewStatus.includes("Needs clarification"), "HireSense should need clarification for disclosure/evidence gaps");
+      assert(hasMatchedRule(result, "article5.emotionRecognitionWorkplaceEducation"), "Article 5 emotion recognition should be matched");
+      assert(hasMatchedRule(result, "annexIII.employment"), "Annex III employment should remain matched as a secondary route");
+      assert(hasMatchedRule(result, "article50.directInteraction") || hasMatchedRule(result, "article50.emotionDisclosure"), "Article 50 should be matched or reviewed for direct interaction/emotion disclosure");
+      assert(hasLegalBasisPoint(result, "4"), "HireSense should include Annex III point 4 legal basis");
+      assert(hasLegalArticle(result, "Article 50"), "HireSense should include Article 50 legal basis");
+      assert(!result.rejectedSignals.some((item) => item.includes("Annex III employment")), "Rejected rules must not include Annex III employment");
+      assert(!result.rejectedSignals.some((item) => item.includes("Article 50 transparency")), "Rejected rules must not include Article 50 transparency");
+      assert(!result.ruleResults.find((rule) => rule.ruleId === "prohibited.article5")?.matchedFacts.includes("Sensitive biometric categorization"), "Sensitive biometric categorization should not be a hard Article 5 match without sensitive trait inference");
+      assert(result.explanation.includes("Secondary high-risk route also matched"), "Report wording should call out secondary high-risk route");
+      assert(result.explanation.includes("Transparency route may be triggered"), "Report wording should call out transparency route");
+    },
+  },
+  {
+    name: "Legal reasoning: public benefits separates data categories",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "WelfarePriority AI";
+      input.providerName = "Civic Services";
+      input.systemDescription = "Scores and ranks public benefits applications for housing support and emergency financial aid. It uses income documents, employment history, medical hardship documents, fraud risk indicators, and a social reliability flag. It generates decision letters for caseworkers to send to residents.";
+      input.purpose = "Public benefits eligibility and prioritization";
+      input.sector = "Public services";
+      seedCore(input, {
+        aiInputs: "Income documents, employment history, medical hardship documents, application history, fraud indicators",
+        aiOutputs: "Eligibility score, priority ranking, fraud risk flag, recommended approval or rejection, generated decision letters",
+        outputUsers: "Caseworkers",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.domains.publicServices = true;
+      input.decisionMode = "materially_influences_decision";
+      input.decisionFacts.scoresPeople = true;
+      input.decisionFacts.ranksPeople = true;
+      input.decisionFacts.approvesRejectsPeople = true;
+      input.decisionFacts.assessesPeople = true;
+      input.contentFacts.generatesPublicFacingContent = true;
+      input.affectedPeople = ["Residents", "Public-service users"];
+      input.dataTypes = ["financial data", "employment history", "medical hardship documents"];
+      input.dataFacts.healthData = true;
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(hasMatchedRule(result, "annexIII.publicServices"), "Public benefits route should trigger Annex III point 5");
+      assert(hasLegalBasisPoint(result, "5"), "Public benefits should cite Annex III point 5");
+      assert(!hasMatchedRule(result, "annexIII.employment"), "Employment history data must not trigger employment domain");
+      assert(!hasMatchedRule(result, "annexIII.healthcare"), "Medical hardship documents must not trigger healthcare route");
+      assert(!hasMatchedRule(result, "article50.syntheticMedia"), "Generated decision letters must not be treated as synthetic media");
+      assert(hasMatchedRule(result, "article50.generatedText"), "Generated public-facing decision letters should trigger generated-text transparency review");
+      assert(
+        hasMatchedRule(result, "article5.socialScoring") ||
+          result.uncertaintyNotes.some((note) => note.toLowerCase().includes("social")),
+        "Social reliability flag should be surfaced for Article 5 review",
+      );
+    },
+  },
+  {
+    name: "Legal reasoning: selfie identity verification is not sensitive categorization",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "LoginSelfie";
+      input.providerName = "AccessCo";
+      input.systemDescription = "Verifies a known user's identity for account login using a selfie and face match. It does not infer race, ethnicity, religion, politics, sexual orientation, or other sensitive traits.";
+      input.purpose = "Account login verification";
+      input.sector = "Identity access";
+      seedCore(input, {
+        aiInputs: "Selfie image and account profile photo",
+        aiOutputs: "Identity verification match or no-match result",
+        outputUsers: "Account security team and users",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.interactionMode = "user_facing";
+      input.decisionMode = "prepares_information";
+      input.dataFacts.biometricData = true;
+      input.affectedPeople = ["Consumers"];
+      input.dataTypes = ["selfie", "face image", "biometric data"];
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(!hasMatchedRule(result, "article5.sensitiveBiometricCategorization"), "Selfie verification must not trigger sensitive biometric categorization");
+      assert(!hasMatchedRule(result, "annexIII.biometricsIdentification"), "One-to-one selfie verification must not trigger Annex III biometric identification");
+      assert(!hasLegalArticle(result, "Article 5"), "Selfie login verification should not cite Article 5 without prohibited context");
+      assert(hasMatchedRule(result, "article50.directInteraction"), "User-facing login flow should still trigger direct-interaction transparency review");
+    },
+  },
+  {
+    name: "Legal reasoning: health data alone is not healthcare high-risk",
+    input: (() => {
+      const input = createEmptyInput();
+      input.systemName = "Hardship Summary Assistant";
+      input.providerName = "Civic Desk";
+      input.systemDescription = "Summarizes medical hardship documents and health insurance letters for administrative staff. It only prepares document summaries for non-clinical hardship review.";
+      input.purpose = "Document summarization";
+      input.sector = "Administration";
+      seedCore(input, {
+        aiInputs: "Medical hardship documents and insurance letters",
+        aiOutputs: "Administrative summaries",
+        outputUsers: "Administrative staff",
+        actorRole: "deployer",
+        systemType: "ai_system",
+      });
+      input.scope.usedInEU = true;
+      input.decisionMode = "prepares_information";
+      input.dataFacts.healthData = true;
+      input.affectedPeople = ["Residents"];
+      input.dataTypes = ["Health data", "medical documents"];
+      return input;
+    })(),
+    check: (result: ReturnType<typeof classifySystem>) => {
+      assert(!hasMatchedRule(result, "annexIII.healthcare"), "Health data alone should not trigger healthcare high-risk");
+      assert(result.riskTier !== "Likely High-risk", "Administrative health-document summaries should not be high-risk without medical decision impact");
+    },
+  },
+] as const) {
+  try {
+    const result = classifySystem(cloneInput(regression.input));
+    regression.check(result);
+    results.push({ name: regression.name, status: "pass", detail: "Passed" });
+  } catch (error) {
+    results.push({
+      name: regression.name,
       status: "fail",
       detail: error instanceof Error ? error.message : String(error),
     });

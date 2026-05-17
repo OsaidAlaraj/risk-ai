@@ -7,8 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import type { ClassificationInput, ClassificationResult, RiskTier } from "../engine/types";
-import { riskTierLabels } from "../engine/types";
+import type { ClassificationInput, ClassificationResult, LegalBasisReference, RiskTier } from "../engine/types";
 import { formatDateTime } from "../lib/utils";
 
 type ReportViewProps = {
@@ -24,8 +23,40 @@ const scopeLabel = (input: ClassificationInput) => {
   return parts.length ? parts.join(", ") : "EU scope not established";
 };
 
+const formatLegalBasis = (basis: LegalBasisReference) => {
+  const prefix = [basis.article, basis.annex, basis.point ? `point ${basis.point}` : ""]
+    .filter(Boolean)
+    .join(" + ");
+  return prefix ? `${prefix}: ${basis.title}` : basis.title;
+};
+
+const formatRouteItem = (
+  route: ClassificationResult["matchedRoutes"][number],
+  finalRiskTier: ClassificationResult["riskTier"]
+) => {
+  const basis =
+    route.legalBasis.map((item) => formatLegalBasis(item)).join("; ") ||
+    route.title ||
+    route.ruleId;
+  const prefix =
+    finalRiskTier === "Potentially prohibited" && route.tier === "high_risk"
+      ? "Secondary high-risk route also matched"
+      : route.tier === "limited_risk"
+        ? "Transparency route may be triggered"
+        : "Matched route";
+
+  return `${prefix}: ${basis}. ${route.explanation}`;
+};
+
 export function ReportView({ input, result }: ReportViewProps) {
   if (!result) return null;
+  const reviewStatus = result.reviewStatus.join(", ");
+  const legalBasisSummary =
+    result.legalBasis.map((basis) => formatLegalBasis(basis)).join("; ") ||
+    "No Article 5, Article 6, or Article 50 route triggered";
+  const matchedRouteItems = result.matchedRoutes.map((route) =>
+    formatRouteItem(route, result.riskTier)
+  );
 
   return (
     <section id="report" className="print-report container pb-16">
@@ -34,13 +65,13 @@ export function ReportView({ input, result }: ReportViewProps) {
         <header className="memo-header">
           <div className="memo-meta">
             <span className="tier-badge" data-tier={result.tier}>
-              {riskTierLabels[result.tier]}
+              {result.riskTier}
             </span>
             <span className="status-badge" data-status="neutral">
               Version {result.assessmentVersion}
             </span>
             <span className="status-badge" data-status="neutral">
-              {result.scopeStatus.replace(/_/g, " ")}
+              {reviewStatus}
             </span>
           </div>
 
@@ -49,7 +80,7 @@ export function ReportView({ input, result }: ReportViewProps) {
               <h2 className="memo-title text-balance">
                 {input.systemName || "AI System"} Classification
               </h2>
-              <p className="memo-summary">{result.summary}</p>
+              <p className="memo-summary">{result.explanation}</p>
             </div>
 
             <div className="flex-shrink-0 lg:w-72">
@@ -79,26 +110,20 @@ export function ReportView({ input, result }: ReportViewProps) {
         {/* Stats row */}
         <div className="memo-stats">
           <StatCard
-            label="Final category"
-            value={riskTierLabels[result.tier]}
+            label="Final risk tier"
+            value={result.riskTier}
           />
           <StatCard
-            label="Input quality"
-            value={
-              result.uncertainty.answerCompleteness >= 75
-                ? "Ready"
-                : result.uncertainty.answerCompleteness >= 50
-                  ? "Needs clarification"
-                  : "High uncertainty"
-            }
+            label="Review status"
+            value={reviewStatus}
           />
           <StatCard
-            label="Evidence status"
-            value={result.evidenceStatus}
+            label="Confidence"
+            value={result.confidenceLabel}
           />
           <StatCard
-            label="Rule group"
-            value={result.ruleGroup}
+            label="Legal basis"
+            value={legalBasisSummary}
           />
         </div>
 
@@ -107,9 +132,33 @@ export function ReportView({ input, result }: ReportViewProps) {
           <div className="flex flex-col gap-4">
             {/* Executive Summary */}
             <MemoSection eyebrow="Overview" title="Executive Summary">
-              <p className="memo-text">{result.summary}</p>
-              <p className="memo-text mt-3">{result.mainReason}</p>
+              <p className="memo-text">{result.explanation}</p>
               <p className="memo-text mt-3">{result.recommendation}</p>
+            </MemoSection>
+
+            <MemoSection eyebrow="Basis" title="Legal Basis">
+              {result.legalBasis.length === 0 ? (
+                <p className="memo-text">No Article 5, Article 6, or Article 50 legal basis is triggered by the current facts.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {result.legalBasis.map((basis) => (
+                    <div key={`${basis.article}-${basis.annex}-${basis.point}-${basis.title}`} className="rounded-md border bg-card p-3">
+                      <p className="text-sm font-medium">{formatLegalBasis(basis)}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{basis.relevance}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </MemoSection>
+
+            <MemoSection eyebrow="Routes" title="Matched Legal Routes">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ActionList title="Matched routes" items={matchedRouteItems} />
+                <ActionList
+                  title="Uncertainty notes"
+                  items={result.uncertaintyNotes.length ? result.uncertaintyNotes : ["No soft uncertainty notes beyond missing facts and review status."]}
+                />
+              </div>
             </MemoSection>
 
             {/* System Description */}
@@ -175,6 +224,19 @@ export function ReportView({ input, result }: ReportViewProps) {
                   </div>
                 ))}
               </div>
+            </MemoSection>
+
+            <MemoSection eyebrow="Facts" title="Facts Used">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ActionList title="Selected facts" items={result.factsUsed} />
+                <ActionList title="Risk basis" items={result.riskBasis.length ? result.riskBasis : ["No high-risk factual chain identified."]} />
+                <ActionList title="Inferred facts" items={result.inferredSignals.length ? result.inferredSignals : ["No inferred facts beyond selected answers."]} />
+                <ActionList title="Selected signals" items={result.selectedSignals.length ? result.selectedSignals : ["No selected risk signals."]} />
+              </div>
+            </MemoSection>
+
+            <MemoSection eyebrow="Rules" title="Rejected / Not Triggered Rules">
+              <ActionList title="Rules not triggered" items={result.rejectedSignals} />
             </MemoSection>
 
             {/* Key Assumptions */}
@@ -280,9 +342,9 @@ export function ReportView({ input, result }: ReportViewProps) {
             <MemoSection eyebrow="Actions" title="Recommended Actions">
               <div className="grid gap-4 lg:grid-cols-2">
                 <ActionList title="Required controls" items={result.requiredControls} />
-                <ActionList title="What could change" items={result.whatCouldChange} />
-                <ActionList title="Next steps" items={result.nextSteps} />
-                <ActionList title="Selected signals" items={result.selectedSignals} />
+                <ActionList title="What could change" items={result.whatCouldChangeResult} />
+                <ActionList title="Recommended actions" items={result.recommendedActions} />
+                <ActionList title="Safeguards/readiness" items={result.safeguards.length ? result.safeguards : ["No safeguards selected."]} />
               </div>
             </MemoSection>
 

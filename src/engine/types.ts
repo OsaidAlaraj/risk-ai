@@ -4,6 +4,24 @@ export type ScopeStatus = "out_of_scope" | "in_scope" | "unclear";
 
 export type ConfidenceLabel = "High" | "Medium" | "Low" | "Insufficient information";
 
+export type LegalRiskTier =
+  | "Out of scope / EU scope not established"
+  | "Not an AI system / AI status unclear"
+  | "Potentially prohibited"
+  | "Likely High-risk"
+  | "Limited risk / Transparency obligation"
+  | "Minimal risk"
+  | "Unclassified / Insufficient facts";
+
+export type ReviewStatus =
+  | "Ready for provisional screening"
+  | "Needs evidence"
+  | "Needs clarification"
+  | "Needs legal review"
+  | "Contradictions detected";
+
+export type RuleStrength = "strong" | "medium" | "weak" | "none";
+
 export type ActorRole = "provider" | "deployer" | "importer" | "distributor" | "product_manufacturer" | "affected_person" | "unclear";
 
 export type SystemType = "ai_system" | "gpai_model" | "gpai_model_systemic_risk" | "embedded_product_component" | "non_ai_or_unclear";
@@ -207,6 +225,31 @@ export interface TriggeredRule extends LegalRule {
   whyItMatters: string;
 }
 
+export interface LegalBasisReference {
+  source: "EU AI Act";
+  article?: string;
+  annex?: string;
+  point?: string;
+  title: string;
+  route?: string;
+  relevance: string;
+}
+
+export interface LegalRuleEvaluation {
+  ruleId: string;
+  title?: string;
+  tier?: string;
+  priority?: number;
+  matched: boolean;
+  strength: RuleStrength;
+  matchedFacts: string[];
+  missingFacts: string[];
+  negativeFacts?: string[];
+  uncertaintyNotes?: string[];
+  legalBasis: LegalBasisReference[];
+  explanation: string;
+}
+
 export interface PipelineStep {
   id: string;
   title: string;
@@ -226,6 +269,21 @@ export interface ChecklistItem {
 
 export interface ClassificationResult {
   tier: RiskTier;
+  riskTier: LegalRiskTier;
+  reviewStatus: ReviewStatus[];
+  legalBasis: LegalBasisReference[];
+  riskBasis: string[];
+  inferredSignals: string[];
+  rejectedSignals: string[];
+  safeguards: string[];
+  explanation: string;
+  whatCouldChangeResult: string[];
+  recommendedActions: string[];
+  ruleResults: LegalRuleEvaluation[];
+  matchedRoutes: LegalRuleEvaluation[];
+  rejectedRoutes: LegalRuleEvaluation[];
+  uncertaintyNotes: string[];
+  reasoningPath: string[];
   scopeStatus: ScopeStatus;
   actorRole: ActorRole;
   systemType: SystemType;

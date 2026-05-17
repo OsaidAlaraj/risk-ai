@@ -15,7 +15,6 @@ import {
 import type { ReactNode } from "react";
 import { exportEvidenceBundle, type AuditRecord } from "../audit/auditStore";
 import type { ClassificationInput, ClassificationResult, RiskTier } from "../engine/types";
-import { riskTierDescriptions, riskTierLabels } from "../engine/types";
 import { getEvidenceState, getIntakeState } from "../lib/assessmentSignals";
 import { formatDateTime } from "../lib/utils";
 
@@ -63,6 +62,11 @@ export function ResultsDashboard({
     .filter((r) => r.systemName === input.systemName)
     .slice(0, 3);
   const mainReason = result.mainReason || result.summary;
+  const reviewStatus = result.reviewStatus.join(", ");
+  const legalBasisSummary =
+    result.legalBasis.map((basis) =>
+      [basis.article, basis.annex, basis.point ? `point ${basis.point}` : ""].filter(Boolean).join(" + ") || basis.title,
+    ).join("; ") || "No legal basis triggered";
   const intakeState = getIntakeState(input);
   const evidenceState = getEvidenceState(input, result);
 
@@ -73,13 +77,13 @@ export function ResultsDashboard({
         <header className="memo-header">
           <div className="memo-meta">
             <span className="tier-badge" data-tier={result.tier}>
-              {riskTierLabels[result.tier]}
+              {result.riskTier}
             </span>
             <span className="status-badge" data-status="neutral">
               Version {result.assessmentVersion}
             </span>
             <span className="status-badge" data-status="neutral">
-              {result.scopeStatus.replace(/_/g, " ")}
+              {reviewStatus}
             </span>
           </div>
 
@@ -88,9 +92,9 @@ export function ResultsDashboard({
               <h2 className="memo-title text-balance">
                 {input.systemName || "AI System"} Assessment
               </h2>
-              <p className="memo-summary">{result.summary}</p>
+              <p className="memo-summary">{result.explanation}</p>
               <p className="mt-2 text-sm font-medium" style={{ color: getTierColor(result.tier) }}>
-                {riskTierDescriptions[result.tier]}
+                {legalBasisSummary}
               </p>
             </div>
 
@@ -120,7 +124,8 @@ export function ResultsDashboard({
 
         {/* Stats */}
         <div className="memo-stats">
-          <StatCard label="Input quality" value={intakeState} hint="Readiness state" />
+          <StatCard label="Final risk tier" value={result.riskTier} hint="Legal tier" />
+          <StatCard label="Review status" value={reviewStatus} hint="Review layer" />
           <StatCard
             label="Evidence status"
             value={evidenceState}
@@ -128,29 +133,42 @@ export function ResultsDashboard({
               input.evidenceDocuments.length
                 ? `${input.evidenceDocuments.length} file(s)`
                 : "None uploaded"
-            }
+              }
           />
-          <StatCard label="Main reason" value={mainReason} hint="Report explanation" />
-          <StatCard label="Rule group" value={result.ruleGroup} hint="Triggered gate" />
+          <StatCard label="Input quality" value={intakeState} hint="Readiness state" />
         </div>
 
         {/* Content */}
         <div className="memo-body">
           <div className="flex flex-col gap-4">
             {/* Executive Summary */}
-            <Panel title="Executive summary" icon={<Scale className="h-5 w-5" />}>
-              <p className="memo-text">{result.summary}</p>
-              <p className="memo-text mt-3">{mainReason}</p>
+            <Panel title="Legal reasoning summary" icon={<Scale className="h-5 w-5" />}>
+              <p className="memo-text">{mainReason}</p>
+              {result.legalBasis.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2">
+                  {result.legalBasis.map((basis) => (
+                    <div key={`${basis.article}-${basis.annex}-${basis.point}-${basis.title}`} className="rounded-md border bg-card px-3 py-2 text-sm">
+                      <span className="font-medium">{[basis.article, basis.annex, basis.point ? `point ${basis.point}` : ""].filter(Boolean).join(" + ")}</span>
+                      <span className="text-muted-foreground">: {basis.title}. {basis.relevance}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Panel>
 
             {/* Facts Used */}
-            <Panel title="Why this classification?" icon={<Scale className="h-5 w-5" />}>
+            <Panel title="Why this tier?" icon={<Scale className="h-5 w-5" />}>
+              <p className="memo-text mb-3">{result.explanation}</p>
               <div className="flex flex-wrap gap-2">
-                {result.factsUsed.slice(0, 8).map((fact) => (
+                {result.riskBasis.length ? result.riskBasis.map((fact) => (
                   <span
                     key={fact}
                     className="rounded-md border bg-card px-2.5 py-1 text-sm"
                   >
+                    {fact}
+                  </span>
+                )) : result.factsUsed.slice(0, 8).map((fact) => (
+                  <span key={fact} className="rounded-md border bg-card px-2.5 py-1 text-sm">
                     {fact}
                   </span>
                 ))}
@@ -214,6 +232,54 @@ export function ResultsDashboard({
                         >
                           {s}
                         </span>
+                      ))}
+                    </div>
+                  )}
+                </Subpanel>
+
+                <Subpanel title="Inferred facts">
+                  {result.inferredSignals.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">None inferred beyond selected answers.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {result.inferredSignals.map((s) => (
+                        <span key={s} className="rounded-md border bg-card px-2 py-0.5 text-sm">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </Subpanel>
+
+                <Subpanel title="Matched legal routes">
+                  <div className="flex flex-col gap-1.5">
+                    {result.matchedRoutes.map((route) => (
+                      <div key={route.ruleId} className="rounded-md border bg-card px-2.5 py-1.5 text-sm text-muted-foreground">
+                        {formatRouteSummary(route, result.riskTier)}
+                      </div>
+                    ))}
+                  </div>
+                </Subpanel>
+
+                <Subpanel title="Rules not triggered">
+                  <div className="flex flex-col gap-1.5">
+                    {result.rejectedSignals.slice(0, 4).map((s) => (
+                      <div key={s} className="rounded-md border bg-card px-2.5 py-1.5 text-sm text-muted-foreground">
+                        {s}
+                      </div>
+                    ))}
+                  </div>
+                </Subpanel>
+
+                <Subpanel title="Uncertainty notes">
+                  {result.uncertaintyNotes.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No soft uncertainty notes.</p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {result.uncertaintyNotes.map((note) => (
+                        <div key={note} className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-sm">
+                          {note}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -288,7 +354,7 @@ export function ResultsDashboard({
                 Recommended next steps
               </div>
               <div className="mt-3 flex flex-col gap-2">
-                {result.nextSteps.map((step) => (
+                {result.recommendedActions.map((step) => (
                   <div key={step} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
                     <span>{step}</span>
@@ -300,7 +366,7 @@ export function ResultsDashboard({
             {/* What Could Change */}
             <SidePanel title="What could change" icon={<Lightbulb className="h-4 w-4" />}>
               <div className="flex flex-col gap-2">
-                {result.whatCouldChange.map((action) => (
+                {result.whatCouldChangeResult.map((action) => (
                   <div key={action} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
                     <span>{action}</span>
@@ -420,6 +486,30 @@ function getTierColor(tier: RiskTier): string {
     needs_review: "hsl(var(--muted-foreground))",
   };
   return colors[tier];
+}
+
+function formatBasisForRoute(route: ClassificationResult["matchedRoutes"][number]) {
+  return route.legalBasis
+    .map((basis) =>
+      [basis.article, basis.annex, basis.point ? `point ${basis.point}` : ""]
+        .filter(Boolean)
+        .join(" + ") || basis.title
+    )
+    .join("; ");
+}
+
+function formatRouteSummary(
+  route: ClassificationResult["matchedRoutes"][number],
+  finalTier: ClassificationResult["riskTier"]
+) {
+  const prefix =
+    finalTier === "Potentially prohibited" && route.tier === "high_risk"
+      ? "Secondary high-risk route also matched"
+      : route.tier === "limited_risk"
+        ? "Transparency route may be triggered"
+        : "Matched";
+  const basis = formatBasisForRoute(route) || route.title || route.ruleId;
+  return `${prefix}: ${basis}. ${route.explanation}`;
 }
 
 function Panel({

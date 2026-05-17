@@ -1,17 +1,71 @@
-import type { ReactNode } from "react";
+import { Info } from "lucide-react";
+import { useId, type ReactNode } from "react";
+import { getFieldHelp, type FieldHelp } from "../lib/fieldHelp";
 import { cx } from "../lib/utils";
+
+type HelpTarget = {
+  label?: string;
+  helpId?: string;
+};
+
+function TooltipInfo({
+  label,
+  helpId,
+  interactive = true,
+}: HelpTarget & { interactive?: boolean }) {
+  const tooltipId = useId();
+  const help: FieldHelp = getFieldHelp(label, helpId);
+
+  return (
+    <span
+      className="tooltip-anchor"
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? `${help.title} help` : undefined}
+      aria-describedby={interactive ? tooltipId : undefined}
+      aria-hidden={interactive ? undefined : true}
+    >
+      <Info className="tooltip-info-icon" aria-hidden="true" />
+      <span id={tooltipId} role="tooltip" className="tooltip-popover">
+        <span className="tooltip-title">{help.title}</span>
+        <span>{help.means}</span>
+        <span>{help.effect}</span>
+        <span>{help.notMean}</span>
+        <span className="tooltip-example">{help.example}</span>
+      </span>
+    </span>
+  );
+}
+
+function LabelWithHelp({
+  label,
+  helpId,
+  className,
+  interactive = true,
+}: HelpTarget & { className?: string; interactive?: boolean }) {
+  if (!label) return null;
+
+  return (
+    <span className={cx("label-with-help", className)}>
+      <span>{label}</span>
+      <TooltipInfo label={label} helpId={helpId} interactive={interactive} />
+    </span>
+  );
+}
 
 // ==================== FIELD ====================
 type FieldProps = {
   label: string;
   hint?: string;
   children: ReactNode;
+  helpId?: string;
 };
 
-export function Field({ label, hint, children }: FieldProps) {
+export function Field({ label, hint, children, helpId }: FieldProps) {
   return (
     <div className="form-group">
-      <label className="form-label">{label}</label>
+      <label className="form-label">
+        <LabelWithHelp label={label} helpId={helpId} />
+      </label>
       {hint && <span className="form-hint">{hint}</span>}
       {children}
     </div>
@@ -37,6 +91,7 @@ type ChoiceOption<T extends string> = {
   value: T;
   title: string;
   detail: string;
+  helpId?: string;
 };
 
 type ChoiceGroupProps<T extends string> = {
@@ -45,6 +100,7 @@ type ChoiceGroupProps<T extends string> = {
   options: ChoiceOption<T>[];
   onChoose: (value: T) => void;
   columns?: 1 | 2;
+  helpId?: string;
 };
 
 export function ChoiceGroup<T extends string>({
@@ -53,10 +109,11 @@ export function ChoiceGroup<T extends string>({
   options,
   onChoose,
   columns = 1,
+  helpId,
 }: ChoiceGroupProps<T>) {
   return (
     <div className="form-group">
-      <span className="form-label">{label}</span>
+      <LabelWithHelp label={label} helpId={helpId} className="form-label" />
       <div
         className="choice-group"
         style={{
@@ -75,7 +132,14 @@ export function ChoiceGroup<T extends string>({
               <span className="choice-indicator-dot" />
             </span>
             <span className="choice-content">
-              <span className="choice-title">{option.title}</span>
+              <span className="choice-title">
+                <span>{option.title}</span>
+                <TooltipInfo
+                  label={option.title}
+                  helpId={option.helpId ?? option.value}
+                  interactive={false}
+                />
+              </span>
               <span className="choice-description">{option.detail}</span>
             </span>
           </button>
@@ -91,9 +155,10 @@ type ToggleRowProps = {
   detail: string;
   checked: boolean;
   onToggle: () => void;
+  helpId?: string;
 };
 
-export function ToggleRow({ title, detail, checked, onToggle }: ToggleRowProps) {
+export function ToggleRow({ title, detail, checked, onToggle, helpId }: ToggleRowProps) {
   return (
     <button
       type="button"
@@ -102,7 +167,10 @@ export function ToggleRow({ title, detail, checked, onToggle }: ToggleRowProps) 
       data-active={checked}
     >
       <span className="toggle-content">
-        <span className="toggle-title">{title}</span>
+        <span className="toggle-title">
+          <span>{title}</span>
+          <TooltipInfo label={title} helpId={helpId} interactive={false} />
+        </span>
         <span className="toggle-description">{detail}</span>
       </span>
       <span className="toggle-switch" aria-hidden="true" />
@@ -116,12 +184,13 @@ type ChipGroupProps = {
   values: string[];
   selected: string[];
   onToggle: (value: string) => void;
+  helpId?: string;
 };
 
-export function ChipGroup({ label, values, selected, onToggle }: ChipGroupProps) {
+export function ChipGroup({ label, values, selected, onToggle, helpId }: ChipGroupProps) {
   return (
     <div className="form-group">
-      <span className="form-label">{label}</span>
+      <LabelWithHelp label={label} helpId={helpId} className="form-label" />
       <div className="chip-group">
         {values.map((value) => (
           <button
@@ -131,7 +200,8 @@ export function ChipGroup({ label, values, selected, onToggle }: ChipGroupProps)
             className="chip"
             data-active={selected.includes(value)}
           >
-            {value}
+            <span>{value}</span>
+            <TooltipInfo label={value} interactive={false} />
           </button>
         ))}
       </div>
@@ -145,13 +215,16 @@ type CardProps = {
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
+  helpId?: string;
 };
 
-export function Card({ title, description, children, footer }: CardProps) {
+export function Card({ title, description, children, footer, helpId }: CardProps) {
   return (
     <div className="card">
       <div className="card-header">
-        <h3 className="card-title">{title}</h3>
+        <h3 className="card-title">
+          <LabelWithHelp label={title} helpId={helpId} />
+        </h3>
         {description && <p className="card-description">{description}</p>}
       </div>
       <div className="card-body">{children}</div>
@@ -165,16 +238,19 @@ type SectionBlockProps = {
   eyebrow: string;
   title: string;
   children: ReactNode;
+  helpId?: string;
 };
 
-export function SectionBlock({ eyebrow, title, children }: SectionBlockProps) {
+export function SectionBlock({ eyebrow, title, children, helpId }: SectionBlockProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <span className="text-xs font-semibold uppercase text-accent">
           {eyebrow}
         </span>
-        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+        <h2 className="text-xl font-semibold text-foreground">
+          <LabelWithHelp label={title} helpId={helpId} />
+        </h2>
       </div>
       {children}
     </div>
@@ -235,13 +311,16 @@ type DisclosureProps = {
   title: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  helpId?: string;
 };
 
-export function Disclosure({ title, children, defaultOpen = false }: DisclosureProps) {
+export function Disclosure({ title, children, defaultOpen = false, helpId }: DisclosureProps) {
   return (
     <details className="disclosure" open={defaultOpen}>
       <summary className="disclosure-trigger">
-        <span className="disclosure-trigger-text">{title}</span>
+        <span className="disclosure-trigger-text">
+          <LabelWithHelp label={title} helpId={helpId} interactive={false} />
+        </span>
         <svg
           className="disclosure-icon h-4 w-4"
           fill="none"

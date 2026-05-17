@@ -387,7 +387,7 @@
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    overflow: hidden;
+    overflow: visible;
   }
 
   .card-header {
@@ -449,6 +449,100 @@
     font-size: 0.75rem;
     color: hsl(var(--muted-foreground));
     line-height: 1.4;
+  }
+
+  .label-with-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .tooltip-anchor {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    flex: 0 0 auto;
+    color: hsl(var(--muted-foreground));
+    cursor: help;
+    vertical-align: middle;
+  }
+
+  .tooltip-info-icon {
+    width: 0.875rem;
+    height: 0.875rem;
+    stroke-width: 2;
+  }
+
+  .tooltip-popover {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.5rem);
+    z-index: 80;
+    display: none;
+    width: min(18rem, calc(100vw - 2rem));
+    transform: translateX(-50%);
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    background: hsl(var(--popover));
+    box-shadow: var(--shadow-lg);
+    color: hsl(var(--popover-foreground));
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.45;
+    text-transform: none;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .tooltip-popover::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    width: 0.625rem;
+    height: 0.625rem;
+    transform: translate(-50%, -50%) rotate(45deg);
+    border-right: 1px solid hsl(var(--border));
+    border-bottom: 1px solid hsl(var(--border));
+    background: hsl(var(--popover));
+  }
+
+  .tooltip-title,
+  .tooltip-popover span {
+    display: block;
+  }
+
+  .tooltip-title {
+    margin-bottom: 0.375rem;
+    color: hsl(var(--foreground));
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .tooltip-popover span + span {
+    margin-top: 0.25rem;
+  }
+
+  .tooltip-example {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .tooltip-anchor:hover .tooltip-popover,
+  .tooltip-anchor:focus .tooltip-popover,
+  .choice-card:hover .tooltip-popover,
+  .choice-card:focus-visible .tooltip-popover,
+  .toggle-card:hover .tooltip-popover,
+  .toggle-card:focus-visible .tooltip-popover,
+  .chip:hover .tooltip-popover,
+  .chip:focus-visible .tooltip-popover,
+  .disclosure-trigger:hover .tooltip-popover,
+  .disclosure-trigger:focus-visible .tooltip-popover {
+    display: block;
   }
 
   .input {
@@ -623,7 +717,9 @@
   }
 
   .choice-title {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     font-size: 0.875rem;
     font-weight: 500;
     color: hsl(var(--foreground));
@@ -667,7 +763,9 @@
   }
 
   .toggle-title {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     font-size: 0.875rem;
     font-weight: 500;
     color: hsl(var(--foreground));
@@ -743,6 +841,10 @@
     background: hsl(var(--foreground));
     border-color: hsl(var(--foreground));
     color: hsl(var(--background));
+  }
+
+  .chip[data-active="true"] .tooltip-anchor {
+    color: hsl(var(--background) / 0.72);
   }
 
   /* ==================== TAB NAVIGATION ==================== */
@@ -1579,7 +1681,7 @@
   .disclosure {
     border: 1px solid hsl(var(--border));
     border-radius: var(--radius);
-    overflow: hidden;
+    overflow: visible;
   }
 
   .disclosure-trigger {
